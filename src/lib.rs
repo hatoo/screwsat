@@ -1,3 +1,4 @@
+#![feature(get_mut_unchecked)]
 pub mod solver {
 
     use std::{
@@ -469,6 +470,7 @@ pub mod solver {
         /// Propagate it by all enqueued values and check conflicts.
         /// If a conflict is detected, this function returns a conflicted clause index.
         /// `None` is no conflicts.
+
         fn propagate(&mut self) -> Option<CWRef> {
             let mut conflict = None;
             'conflict: while self.head < self.que.len() {
@@ -482,11 +484,9 @@ pub mod solver {
                     let m = self.watchers[p].len();
                     debug_assert!(idx < m);
                     let cwr = self.watchers[p][idx].clone();
-                    debug_assert!(cwr.upgrade().is_some());
-
-                    let cr = cwr.upgrade().unwrap();
-                    debug_assert!(Rc::strong_count(&cr) == 2);
-                    let mut clause = cr.borrow_mut();
+                    let ptr = cwr.as_ptr();
+                    let cr = unsafe { &*ptr };
+                    let mut clause = unsafe { &mut *cr.as_ptr() };
 
                     debug_assert!(clause[0] == !p || clause[1] == !p);
 
@@ -533,11 +533,7 @@ pub mod solver {
                         // clause[1] is a false
                         // clause[2..len] is a false
 
-                        debug_assert_eq!(self.level[first.var()], 0);
-                        // NOTE
-                        // I don't know how to handle this borrowing problem. Please help me.
-                        // self.enqueue(var, sign, Some(cr));
-                        self.enqueue(first, Some(CRef(cr.clone())));
+                        self.enqueue(first, Some(CRef(cwr.upgrade().unwrap())));
                     }
                     idx += 1;
                 }
